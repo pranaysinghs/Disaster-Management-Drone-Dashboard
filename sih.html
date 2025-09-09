@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Disaster Management Drone Control Center</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+  <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #0f0f1c, #1b1b2f);
+      color: #fff;
+      overflow: hidden;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 20px;
+      background: rgba(0, 0, 0, 0.7);
+      border-bottom: 2px solid #00c6ff;
+    }
+    header h1 {
+      font-size: 20px;
+      margin: 0;
+      color: #ff4d4d;
+    }
+    .drone-select {
+      padding: 5px 10px;
+      border-radius: 8px;
+      border: none;
+      background: #00c6ff;
+      color: #fff;
+      font-weight: bold;
+    }
+    main {
+      display: grid;
+      grid-template-columns: 300px 1fr 300px;
+      height: calc(100vh - 60px);
+    }
+    aside, section {
+      background: rgba(255, 255, 255, 0.05);
+      backdrop-filter: blur(10px);
+      padding: 15px;
+      overflow-y: auto;
+    }
+    #map {
+      height: 100%;
+      width: 100%;
+    }
+    h2 {
+      font-size: 16px;
+      border-bottom: 1px solid #00c6ff;
+      padding-bottom: 5px;
+      margin-bottom: 10px;
+      color: #00c6ff;
+    }
+    .drone-info, .telemetry, .mission, .controls {
+      margin-bottom: 20px;
+    }
+    .info-item {
+      margin-bottom: 8px;
+      color: #ddd;
+    }
+    .chart-row {
+      display: flex;
+      gap: 10px;
+    }
+    .chart-container {
+      flex: 1;
+      position: relative;
+      height: 150px;
+    }
+    /* Buttons */
+    .control-btn {
+      display: block;
+      width: 100%;
+      padding: 10px;
+      margin: 5px 0;
+      border: none;
+      border-radius: 10px;
+      cursor: pointer;
+      font-weight: bold;
+      transition: transform 0.2s ease;
+    }
+    .control-btn:hover {
+      transform: scale(1.05);
+    }
+    .btn-primary {
+      background: #00c6ff;
+      color: #fff;
+    }
+    .btn-secondary {
+      background: #4caf50;
+      color: #fff;
+    }
+    .btn-danger {
+      background: #ff4d4d;
+      color: #fff;
+    }
+    .btn-warning {
+      background: #ffa500;
+      color: #fff;
+    }
+    .active {
+      border: 2px solid #fff;
+    }
+    /* Signal bars */
+    .signal-bars {
+      display: flex;
+      gap: 3px;
+      align-items: flex-end;
+    }
+    .bar {
+      width: 5px;
+      background: #555;
+      border-radius: 2px;
+    }
+    .bar.active {
+      background: #00ff88;
+    }
+    .drop-list {
+      margin-top: 10px;
+      padding-left: 15px;
+    }
+    .drop-list li {
+      margin-bottom: 5px;
+    }
+    /* Mission Progress Bar */
+    .progress {
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      height: 18px;
+      width: 100%;
+      margin-top: 10px;
+      overflow: hidden;
+    }
+    .progress-bar {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #FFD700, #00c6ff);
+      box-shadow: 0 0 10px #00c6ff;
+      transition: width 0.5s ease;
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1> Multi-Drone Control Center</h1>
+    <select id="droneSelect" class="drone-select" onchange="selectDrone()">
+      <option value="drone1">Drone 1</option>
+      <option value="drone2">Drone 2</option>
+      <option value="drone3">Drone 3</option>
+    </select>
+  </header>
+  <main>
+    <!-- Drone Info Sidebar -->
+    <aside>
+      <div class="drone-info">
+        <h2>Drone Information</h2>
+        <div class="info-item">Model: <span id="droneModel">Quadcopter X1</span></div>
+        <div class="info-item">Flight Time: <span id="flightTime">00:12:34</span></div>
+        <div class="info-item">Altitude: <span id="altitude">120m</span></div>
+        <div class="info-item">Speed: <span id="speed">15 m/s</span></div>
+        <div class="info-item">Battery: <span id="battery">85%</span></div>
+        <div class="info-item">Payload: <span id="currentWeight">2.5 kg</span></div>
+        <div class="info-item">Remaining Payload: <span id="remainingPayload">2.5 kg</span></div>
+        <div class="info-item">Drops: <span id="dropCount">3</span></div>
+        <div class="info-item">Position: <span id="position">18.5074°N, 73.8077°E</span></div>
+      </div>
+      <div class="mission">
+        <h2>Mission Status</h2>
+        <div class="info-item">Current Task: <span id="currentTask">Delivering Supplies</span></div>
+        <div class="info-item">Completed: <span id="completedTasks">2</span></div>
+        <div class="info-item">Pending: <span id="pendingTasks">1</span></div>
+        <h3>Drop Points:</h3>
+        <ul class="drop-list" id="dropList">
+          <li>Medical Supplies ✅</li>
+          <li>Food Package ✅</li>
+          <li>Water Bottles ⏳</li>
+        </ul>
+        <!-- Progress bar -->
+        <div class="progress"><div class="progress-bar" id="missionProgress"></div></div>
+      </div>
+    </aside>
+
+    <!-- Map -->
+    <section>
+      <div id="map"></div>
+    </section>
+
+    <!-- Telemetry Sidebar -->
+    <aside>
+      <div class="telemetry">
+        <h2>Telemetry</h2>
+        <div class="info-item">GPS: <span id="gps">Active</span></div>
+        <div class="info-item">IMU: <span id="imu">Stable</span></div>
+        <div class="info-item">Signal:</div>
+        <div class="signal-bars" id="signalBars">
+          <div class="bar active" style="height: 5px"></div>
+          <div class="bar active" style="height: 10px"></div>
+          <div class="bar active" style="height: 15px"></div>
+          <div class="bar" style="height: 20px"></div>
+        </div>
+        <div class="chart-row">
+          <div class="chart-container">
+            <canvas id="batteryChart"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="controls">
+        <h2>Controls</h2>
+        <button class="control-btn btn-primary" onclick="toggleDropMarkers()" id="dropToggle">Toggle Drop Markers</button>
+        <button class="control-btn btn-secondary" onclick="setMapView('satellite')">Back</button>
+        <button class="control-btn btn-warning" onclick="setMapView('terrain')">Home</button>
+        <button class="control-btn btn-danger" onclick="alert('🚨 Emergency Triggered!')">Emergency</button>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    let map, satelliteLayer, terrainLayer, streetsLayer;
+    let currentLayer;
+    let droneMarkers = {};
+    let dropMarkers = [];
+    let showDrops = false;
+    let currentDrone = "drone1";
+    const MAX_PAYLOAD = 5;
+
+    const droneData = {
+      drone1: { name:"Drone 1", model:"Quadcopter X1", flightTime:["00","12","34"], altitude:120, speed:15, battery:85, payload:2.5, drops:3, position:[18.5074, 73.8077], task:"Delivering Supplies", completed:2, pending:1 },
+      drone2: { name:"Drone 2", model:"Hexacopter H2", flightTime:["00","22","10"], altitude:80, speed:12, battery:72, payload:1.5, drops:2, position:[18.5090, 73.8060], task:"Surveying Area", completed:1, pending:2 },
+      drone3: { name:"Drone 3", model:"Octocopter O3", flightTime:["00","05","44"], altitude:150, speed:18, battery:93, payload:4, drops:1, position:[18.5082, 73.8082], task:"Mapping Terrain", completed:0, pending:3 }
+    };
+
+    function initMap() {
+      map = L.map("map").setView([18.5074, 73.8077], 15);
+      satelliteLayer = L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { attribution:"Satellite" });
+      terrainLayer = L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png", { attribution:"Terrain" });
+      streetsLayer = L.tileLayer("https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png", { attribution:"Streets" });
+      currentLayer = satelliteLayer;
+      currentLayer.addTo(map);
+
+      for (let key in droneData) {
+        let marker = L.marker(droneData[key].position).addTo(map).bindPopup(droneData[key].name);
+        droneMarkers[key] = marker;
+      }
+    }
+
+    function setMapView(view) {
+      map.removeLayer(currentLayer);
+      if (view === "satellite") currentLayer = satelliteLayer;
+      else if (view === "terrain") currentLayer = terrainLayer;
+      else currentLayer = streetsLayer;
+      currentLayer.addTo(map);
+    }
+
+    function selectDrone() {
+      const droneId = document.getElementById("droneSelect").value;
+      currentDrone = droneId;
+      const drone = droneData[droneId];
+      document.getElementById("droneModel").textContent = drone.model;
+      document.getElementById("flightTime").textContent = drone.flightTime.join(":");
+      document.getElementById("altitude").textContent = drone.altitude + "m";
+      document.getElementById("speed").textContent = drone.speed + " m/s";
+      document.getElementById("battery").textContent = drone.battery + "%";
+      document.getElementById("currentWeight").textContent = drone.payload + " kg";
+      document.getElementById("remainingPayload").textContent = (MAX_PAYLOAD - drone.payload).toFixed(1) + " kg";
+      document.getElementById("dropCount").textContent = drone.drops;
+      document.getElementById("position").textContent = drone.position[0].toFixed(4) + "°N, " + drone.position[1].toFixed(4) + "°E";
+      document.getElementById("currentTask").textContent = drone.task;
+      document.getElementById("completedTasks").textContent = drone.completed;
+      document.getElementById("pendingTasks").textContent = drone.pending;
+      map.setView(drone.position, 15);
+      droneMarkers[droneId].setLatLng(drone.position);
+
+      // Update mission progress bar
+      updateMissionProgress(drone.completed, drone.pending);
+    }
+
+    function updateMissionProgress(completed, pending) {
+      const total = completed + pending;
+      const percent = total > 0 ? (completed / total) * 100 : 0;
+      document.getElementById("missionProgress").style.width = percent + "%";
+    }
+
+    function toggleDropMarkers() {
+      showDrops = !showDrops;
+      if (showDrops) {
+        dropMarkers = [
+          L.marker([18.5077, 73.8082]).addTo(map).bindPopup("Medical Supplies"),
+          L.marker([18.5068, 73.8070]).addTo(map).bindPopup("Food Package"),
+          L.marker([18.5085, 73.8065]).addTo(map).bindPopup("Water Bottles")
+        ];
+        document.getElementById("dropToggle").classList.add("active");
+      } else {
+        dropMarkers.forEach(m => map.removeLayer(m));
+        dropMarkers = [];
+        document.getElementById("dropToggle").classList.remove("active");
+      }
+    }
+
+    function initCharts() {
+      const ctxBattery = document.getElementById("batteryChart").getContext("2d");
+      window.batteryChart = new Chart(ctxBattery, {
+        type: "line",
+        data: { labels: [], datasets: [{ label: "Battery %", data: [], borderColor: "#FFD700", backgroundColor: "rgba(255,215,0,0.2)", fill: true, tension: 0.3, borderWidth: 2 }] },
+        options: { responsive: true, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, max: 100 } } }
+      });
+    }
+
+    function updateTelemetry() {
+      const drone = droneData[currentDrone];
+      drone.battery = Math.max(0, drone.battery - Math.random() * 2);
+      drone.altitude = 100 + Math.floor(Math.random() * 50);
+      drone.speed = 10 + Math.floor(Math.random() * 10);
+
+      document.getElementById("battery").textContent = drone.battery.toFixed(0) + "%";
+      document.getElementById("altitude").textContent = drone.altitude + "m";
+      document.getElementById("speed").textContent = drone.speed + " m/s";
+
+      const time = new Date().toLocaleTimeString();
+      window.batteryChart.data.labels.push(time);
+      window.batteryChart.data.datasets[0].data.push(drone.battery.toFixed(0));
+      if (window.batteryChart.data.labels.length > 10) {
+        window.batteryChart.data.labels.shift();
+        window.batteryChart.data.datasets[0].data.shift();
+      }
+      window.batteryChart.update();
+    }
+
+    window.onload = () => {
+      initMap();
+      initCharts();
+      selectDrone();
+      setInterval(updateTelemetry, 3000);
+    };
+  </script>
+</body>
+</html>
